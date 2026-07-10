@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fog Mirror · gesture-controlled-ui</title>
+  <link rel="stylesheet" href="../assets/css/experiment.css" />
+</head>
+<body>
+  <nav><a href="../index.html">← Back</a></nav>
+  <h1>🌫️ Fog Mirror</h1>
+  <p class="subtitle">Move your cursor (or hand) to wipe away the fog.</p>
+
+  <div id="stage" style="height:480px">
+    <video id="webcam" width="640" height="480" playsinline muted></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+  </div>
+  <p id="status">Starting webcam…</p>
+
+  <script type="module">
+    import { startWebcam } from '../assets/js/webcam.js';
+
+    const video  = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+    const status = document.getElementById('status');
+
+    async function main() {
+      await startWebcam(video);
+      status.textContent = 'Move over the canvas to clear the fog.';
+
+      // Fill fog layer
+      ctx.fillStyle = 'rgba(180,200,220,0.95)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      function drawVideo() {
+        // Draw video underneath fog via destination-out trick
+        requestAnimationFrame(drawVideo);
+      }
+      drawVideo();
+
+      canvas.addEventListener('pointermove', e => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        wipe(x, y);
+      });
+
+      // Refresh fog slowly
+      setInterval(() => {
+        ctx.fillStyle = 'rgba(180,200,220,0.03)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }, 50);
+    }
+
+    function wipe(x, y) {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(x, y, 40, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    main().catch(err => { status.textContent = 'Error: ' + err.message; });
+  </script>
+</body>
+</html>

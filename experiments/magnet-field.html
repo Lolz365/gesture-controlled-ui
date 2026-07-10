@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Magnet Field · gesture-controlled-ui</title>
+  <link rel="stylesheet" href="../assets/css/experiment.css" />
+</head>
+<body>
+  <nav><a href="../index.html">← Back</a></nav>
+  <h1>🧲 Magnet Field</h1>
+  <p class="subtitle">Your cursor acts as a magnetic pole — watch the field lines react.</p>
+
+  <div id="stage" style="height:480px">
+    <canvas id="canvas" width="640" height="480"></canvas>
+  </div>
+
+  <script type="module">
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    let mx = W/2, my = H/2;
+
+    canvas.addEventListener('pointermove', e => {
+      const r = canvas.getBoundingClientRect();
+      mx = e.clientX - r.left;
+      my = e.clientY - r.top;
+    });
+
+    const LINES = 36;
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#0d0d0d';
+      ctx.fillRect(0, 0, W, H);
+
+      for (let i = 0; i < LINES; i++) {
+        const angle = (i / LINES) * Math.PI * 2;
+        let x = mx + Math.cos(angle) * 10;
+        let y = my + Math.sin(angle) * 10;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+
+        for (let step = 0; step < 80; step++) {
+          const dx = x - mx, dy = y - my;
+          const dist2 = dx*dx + dy*dy || 1;
+          const fx = -dx / dist2 * 500;
+          const fy = -dy / dist2 * 500;
+          x += fx * 0.5 + Math.cos(angle) * 2;
+          y += fy * 0.5 + Math.sin(angle) * 2;
+          ctx.lineTo(x, y);
+          if (x < 0 || x > W || y < 0 || y > H) break;
+        }
+
+        const hue = (i / LINES * 360 + mx * 0.2) % 360;
+        ctx.strokeStyle = `hsla(${hue},80%,60%,0.7)`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+  </script>
+</body>
+</html>

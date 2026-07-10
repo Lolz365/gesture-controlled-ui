@@ -1,0 +1,47 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #0d0d0d;
+  color: #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+
+nav a {
+  display: inline-block;
+  margin: 1rem;
+  color: #7c6ff7;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+h1 { font-size: 1.8rem; margin: 0.5rem 0 0.25rem; }
+p.subtitle { color: #888; font-size: 0.95rem; margin-bottom: 1rem; }
+
+#stage {
+  position: relative;
+  width: 640px;
+  max-width: 98vw;
+}
+
+#webcam, #canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+#webcam { opacity: 0; pointer-events: none; }
+
+#canvas { border: 1px solid #2a2a2a; }
+
+#status {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #666;
+  text-align: center;
+}

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Liquid Light · gesture-controlled-ui</title>
+  <link rel="stylesheet" href="../assets/css/experiment.css" />
+</head>
+<body>
+  <nav><a href="../index.html">← Back</a></nav>
+  <h1>💧 Liquid Light</h1>
+  <p class="subtitle">Hover to distort the light grid with fluid ripples.</p>
+
+  <div id="stage" style="height:480px">
+    <canvas id="canvas" width="640" height="480"></canvas>
+  </div>
+
+  <script type="module">
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const COLS = 20, ROWS = 15;
+    const cw = W / COLS, ch = H / ROWS;
+
+    let mx = W/2, my = H/2, t = 0;
+
+    canvas.addEventListener('pointermove', e => {
+      const r = canvas.getBoundingClientRect();
+      mx = e.clientX - r.left;
+      my = e.clientY - r.top;
+    });
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#0d0d0d';
+      ctx.fillRect(0, 0, W, H);
+
+      for (let col = 0; col <= COLS; col++) {
+        for (let row = 0; row <= ROWS; row++) {
+          const bx = col * cw, by = row * ch;
+          const dx = bx - mx, dy = by - my;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          const ripple = Math.sin(dist * 0.05 - t) * 8;
+          const x = bx + (dx / (dist||1)) * ripple;
+          const y = by + (dy / (dist||1)) * ripple;
+
+          const hue = (col * 18 + row * 24 + t * 30) % 360;
+          ctx.fillStyle = `hsl(${hue},70%,60%)`;
+          ctx.beginPath();
+          ctx.arc(x, y, 2, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+      t += 0.05;
+      requestAnimationFrame(draw);
+    }
+    draw();
+  </script>
+</body>
+</html>

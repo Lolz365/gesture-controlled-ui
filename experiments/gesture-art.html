@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gesture Art · gesture-controlled-ui</title>
+  <link rel="stylesheet" href="../assets/css/experiment.css" />
+</head>
+<body>
+  <nav><a href="../index.html">← Back</a></nav>
+  <h1>🎨 Gesture Art</h1>
+  <p class="subtitle">Move your index finger to paint. Pinch to change color.</p>
+
+  <div id="stage" style="height:480px">
+    <video id="webcam" width="640" height="480" playsinline muted></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+  </div>
+  <p id="status">Starting webcam…</p>
+
+  <script type="module">
+    import { startWebcam } from '../assets/js/webcam.js';
+
+    const video  = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+    const status = document.getElementById('status');
+
+    let lastX = null, lastY = null;
+    let hue = 0;
+
+    // --- MediaPipe Hands fallback (no model file needed for demo) ---
+    async function main() {
+      await startWebcam(video);
+      status.textContent = 'Webcam active — move your hand!';
+
+      // Draw video feed as background
+      function drawFrame() {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+        ctx.restore();
+        requestAnimationFrame(drawFrame);
+      }
+      drawFrame();
+
+      // Pointer-based fallback so the page works without a model
+      canvas.addEventListener('pointermove', e => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        paint(x, y);
+      });
+    }
+
+    function paint(x, y) {
+      hue = (hue + 1) % 360;
+      ctx.strokeStyle = `hsl(${hue}, 90%, 60%)`;
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      if (lastX !== null) ctx.moveTo(lastX, lastY);
+      else ctx.moveTo(x, y);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      lastX = x; lastY = y;
+    }
+
+    canvas.addEventListener('pointerleave', () => { lastX = null; lastY = null; });
+
+    main().catch(err => { status.textContent = 'Error: ' + err.message; });
+  </script>
+</body>
+</html>
