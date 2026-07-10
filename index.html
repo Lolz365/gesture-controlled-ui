@@ -4,44 +4,76 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gesture-Controlled UI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/main.css" />
 </head>
 <body>
-  <header>
-    <h1>✋ Gesture-Controlled UI</h1>
-    <p>Browser-native hand-tracking experiments powered by LiteRT.js</p>
+  <header class="hero">
+    <div class="hero-badge">✨ Browser-native · No install</div>
+    <h1>Gesture-Controlled UI</h1>
+    <p>Five interactive experiments driven by your hands via webcam — powered by MediaPipe &amp; LiteRT running entirely in-browser.</p>
+    <div class="hero-dots"><span></span><span></span><span></span></div>
   </header>
 
   <main class="experiment-grid">
     <a class="card" href="experiments/gesture-art.html">
-      <span class="emoji">🎨</span>
+      <div class="card-icon">🎨</div>
       <h2>Gesture Art</h2>
-      <p>Paint with your hands in real time using hand landmarks.</p>
+      <p>Point your index finger to paint. Pinch to lift the brush and cycle hue.</p>
+      <div class="card-tag">Hand Landmarks</div>
     </a>
     <a class="card" href="experiments/fog-mirror.html">
-      <span class="emoji">🌫️</span>
+      <div class="card-icon">🌫️</div>
       <h2>Fog Mirror</h2>
-      <p>Wave your hand to clear a fog layer and reveal what's underneath.</p>
+      <p>Wave your palm and fingertips to wipe away a fog layer revealing your reflection.</p>
+      <div class="card-tag">Palm + Fingertips</div>
     </a>
     <a class="card" href="experiments/breath-room.html">
-      <span class="emoji">🌬️</span>
+      <div class="card-icon">🌬️</div>
       <h2>Breath Room</h2>
-      <p>Control ambient particles with slow, breathing-like hand movements.</p>
+      <p>Open palm explodes particles outward. Close your fist to pull them back into a sphere.</p>
+      <div class="card-tag">Openness Detection</div>
     </a>
     <a class="card" href="experiments/liquid-light.html">
-      <span class="emoji">💧</span>
+      <div class="card-icon">💧</div>
       <h2>Liquid Light</h2>
-      <p>Distort a light grid with fluid gestures captured by your webcam.</p>
+      <p>Hold your palm over the color grid to distort it with fluid ripple waves.</p>
+      <div class="card-tag">Palm Center</div>
     </a>
     <a class="card" href="experiments/magnet-field.html">
-      <span class="emoji">🧲</span>
+      <div class="card-icon">🧲</div>
       <h2>Magnet Field</h2>
-      <p>Attract and repel field lines using your palm as a magnetic source.</p>
+      <p>Your palm becomes a magnetic pole — 40 field lines bend and orbit around it.</p>
+      <div class="card-tag">Palm Center</div>
     </a>
   </main>
 
   <footer>
-    <p>Built with <a href="https://developers.google.com/edge/litert/web/get_started" target="_blank">LiteRT Web</a> · <a href="https://github.com/Lolz365/gesture-controlled-ui" target="_blank">Source on GitHub</a></p>
+    Built with <a href="https://developers.google.com/mediapipe" target="_blank">MediaPipe Tasks Vision</a> &amp;
+    <a href="https://developers.google.com/edge/litert/web/get_started" target="_blank">LiteRT Web</a> &middot;
+    <a href="https://github.com/Lolz365/gesture-controlled-ui" target="_blank">Source on GitHub</a>
   </footer>
+
+  <script>
+    // Animated card entrance
+    const cards = document.querySelectorAll('.card');
+    const io = new IntersectionObserver(entries => {
+      entries.forEach((e, i) => {
+        if (e.isIntersecting) {
+          e.target.style.animation = `fadeUp 0.45s ${i * 0.07}s both ease-out`;
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    cards.forEach(c => io.observe(c));
+  </script>
+  <style>
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(22px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
 </body>
 </html>

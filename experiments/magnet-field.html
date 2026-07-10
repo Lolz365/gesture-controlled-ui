@@ -4,65 +4,87 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Magnet Field · gesture-controlled-ui</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../assets/css/experiment.css" />
 </head>
 <body>
-  <nav><a href="../index.html">← Back</a></nav>
-  <h1>🧲 Magnet Field</h1>
-  <p class="subtitle">Your cursor acts as a magnetic pole — watch the field lines react.</p>
+  <nav><a href="../index.html">Home</a></nav>
+  <div class="exp-header">
+    <h1>🧲 Magnet Field</h1>
+    <p>Your palm is a magnetic pole — 40 field lines orbit around it.</p>
+  </div>
 
-  <div id="stage" style="height:480px">
-    <canvas id="canvas" width="640" height="480"></canvas>
+  <div id="stage">
+    <video id="webcam" playsinline muted></video>
+    <canvas id="canvas" class="layer"></canvas>
+  </div>
+
+  <div id="status-bar">
+    <div class="status-dot loading" id="dot"></div>
+    <span id="status">Loading MediaPipe…</span>
+  </div>
+
+  <div class="hints">
+    <span class="hint">✋ Hold up palm to attract lines</span>
+    <span class="hint">🌈 Hue shifts with hand position</span>
   </div>
 
   <script type="module">
+    import { startWebcam } from '../assets/js/webcam.js';
+    import { initHandTracker, detectHands, palmCenter } from '../assets/js/hand-tracker.js';
+
+    const video  = document.getElementById('webcam');
     const canvas = document.getElementById('canvas');
-    const ctx    = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
+    const dot    = document.getElementById('dot');
+    const status = document.getElementById('status');
+    const stage  = document.getElementById('stage');
+    const W=stage.offsetWidth||640, H=stage.offsetHeight||480;
+    canvas.width=W; canvas.height=H; video.width=W; video.height=H;
+    const ctx=canvas.getContext('2d');
+    const LINES=40;
+    let mx=W/2,my=H/2;
 
-    let mx = W/2, my = H/2;
+    function setStatus(msg,state){status.textContent=msg;dot.className='status-dot '+state;}
 
-    canvas.addEventListener('pointermove', e => {
-      const r = canvas.getBoundingClientRect();
-      mx = e.clientX - r.left;
-      my = e.clientY - r.top;
-    });
-
-    const LINES = 36;
-
-    function draw() {
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#0d0d0d';
-      ctx.fillRect(0, 0, W, H);
-
-      for (let i = 0; i < LINES; i++) {
-        const angle = (i / LINES) * Math.PI * 2;
-        let x = mx + Math.cos(angle) * 10;
-        let y = my + Math.sin(angle) * 10;
-
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-
-        for (let step = 0; step < 80; step++) {
-          const dx = x - mx, dy = y - my;
-          const dist2 = dx*dx + dy*dy || 1;
-          const fx = -dx / dist2 * 500;
-          const fy = -dy / dist2 * 500;
-          x += fx * 0.5 + Math.cos(angle) * 2;
-          y += fy * 0.5 + Math.sin(angle) * 2;
-          ctx.lineTo(x, y);
-          if (x < 0 || x > W || y < 0 || y > H) break;
+    function drawField(){
+      ctx.clearRect(0,0,W,H); ctx.fillStyle='#08080f'; ctx.fillRect(0,0,W,H);
+      for(let i=0;i<LINES;i++){
+        const angle=(i/LINES)*Math.PI*2;
+        let x=mx+Math.cos(angle)*12, y=my+Math.sin(angle)*12;
+        ctx.beginPath(); ctx.moveTo(x,y);
+        for(let s=0;s<100;s++){
+          const dx=x-mx,dy=y-my,d2=dx*dx+dy*dy||1;
+          x+=(-dx/d2*600)*0.5+Math.cos(angle)*2.2;
+          y+=(-dy/d2*600)*0.5+Math.sin(angle)*2.2;
+          ctx.lineTo(x,y);
+          if(x<0||x>W||y<0||y>H)break;
         }
-
-        const hue = (i / LINES * 360 + mx * 0.2) % 360;
-        ctx.strokeStyle = `hsla(${hue},80%,60%,0.7)`;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+        ctx.strokeStyle=`hsla(${(i/LINES*360+mx*0.2)%360},80%,60%,0.7)`;
+        ctx.lineWidth=1.5; ctx.stroke();
       }
-
-      requestAnimationFrame(draw);
     }
-    draw();
+
+    async function main(){
+      setStatus('Requesting webcam…','loading');
+      await startWebcam(video);
+      setStatus('Loading hand model…','loading');
+      await initHandTracker();
+      setStatus('Ready — hold your palm up!','ready');
+      function loop(){
+        const lm=detectHands(video);
+        const palm=palmCenter(lm,W,H);
+        if(palm){mx=W-palm.x; my=palm.y;}
+        drawField(); requestAnimationFrame(loop);
+      }
+      loop();
+    }
+
+    main().catch(err=>{
+      setStatus('⚠️ '+err.message+' — mouse fallback','error');
+      canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top;});
+      (function loop(){drawField();requestAnimationFrame(loop);})();
+    });
   </script>
 </body>
 </html>

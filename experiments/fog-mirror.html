@@ -4,64 +4,91 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fog Mirror · gesture-controlled-ui</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../assets/css/experiment.css" />
 </head>
 <body>
-  <nav><a href="../index.html">← Back</a></nav>
-  <h1>🌫️ Fog Mirror</h1>
-  <p class="subtitle">Move your cursor (or hand) to wipe away the fog.</p>
-
-  <div id="stage" style="height:480px">
-    <video id="webcam" width="640" height="480" playsinline muted></video>
-    <canvas id="canvas" width="640" height="480"></canvas>
+  <nav><a href="../index.html">Home</a></nav>
+  <div class="exp-header">
+    <h1>🌫️ Fog Mirror</h1>
+    <p>Wave your hand to wipe fog away and reveal your live reflection.</p>
   </div>
-  <p id="status">Starting webcam…</p>
+
+  <div id="stage">
+    <video id="webcam" playsinline muted></video>
+    <canvas id="bg" class="layer"></canvas>
+    <canvas id="canvas" class="layer"></canvas>
+  </div>
+
+  <div id="status-bar">
+    <div class="status-dot loading" id="dot"></div>
+    <span id="status">Loading MediaPipe…</span>
+  </div>
+
+  <div class="hints">
+    <span class="hint">🤚 Wave palm to clear fog</span>
+    <span class="hint">⏳ Fog slowly reforms</span>
+  </div>
 
   <script type="module">
     import { startWebcam } from '../assets/js/webcam.js';
+    import { initHandTracker, detectHands, palmCenter } from '../assets/js/hand-tracker.js';
 
     const video  = document.getElementById('webcam');
+    const bg     = document.getElementById('bg');
     const canvas = document.getElementById('canvas');
-    const ctx    = canvas.getContext('2d');
+    const dot    = document.getElementById('dot');
     const status = document.getElementById('status');
+    const stage  = document.getElementById('stage');
+    const W = stage.offsetWidth || 640, H = stage.offsetHeight || 480;
+
+    [bg, canvas].forEach(c => { c.width = W; c.height = H; });
+    video.width = W; video.height = H;
+
+    const bgCtx = bg.getContext('2d');
+    const ctx   = canvas.getContext('2d');
+
+    function setStatus(msg, state) { status.textContent = msg; dot.className = 'status-dot ' + state; }
 
     async function main() {
+      setStatus('Requesting webcam…', 'loading');
       await startWebcam(video);
-      status.textContent = 'Move over the canvas to clear the fog.';
+      setStatus('Loading hand model…', 'loading');
+      await initHandTracker();
+      setStatus('Ready — wave your hand!', 'ready');
 
-      // Fill fog layer
-      ctx.fillStyle = 'rgba(180,200,220,0.95)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(140,165,195,0.97)';
+      ctx.fillRect(0, 0, W, H);
 
-      function drawVideo() {
-        // Draw video underneath fog via destination-out trick
-        requestAnimationFrame(drawVideo);
+      function loop() {
+        bgCtx.save(); bgCtx.scale(-1,1); bgCtx.drawImage(video,-W,0,W,H); bgCtx.restore();
+        ctx.fillStyle = 'rgba(140,165,195,0.016)'; ctx.fillRect(0,0,W,H);
+        const lm = detectHands(video);
+        const palm = palmCenter(lm, W, H);
+        if (palm) {
+          wipe(W - palm.x, palm.y, 60);
+          [4,8,12,16,20].forEach(id => { if(lm[id]) wipe(W - lm[id].x*W, lm[id].y*H, 24); });
+        }
+        requestAnimationFrame(loop);
       }
-      drawVideo();
-
-      canvas.addEventListener('pointermove', e => {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        wipe(x, y);
-      });
-
-      // Refresh fog slowly
-      setInterval(() => {
-        ctx.fillStyle = 'rgba(180,200,220,0.03)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }, 50);
+      loop();
     }
 
-    function wipe(x, y) {
+    function wipe(x, y, r = 42) {
       ctx.globalCompositeOperation = 'destination-out';
-      ctx.beginPath();
-      ctx.arc(x, y, 40, 0, Math.PI * 2);
-      ctx.fill();
+      const g = ctx.createRadialGradient(x,y,0,x,y,r);
+      g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
     }
 
-    main().catch(err => { status.textContent = 'Error: ' + err.message; });
+    main().catch(err => {
+      setStatus('⚠️ ' + err.message + ' — mouse fallback active', 'error');
+      canvas.addEventListener('pointermove', e => { const r=canvas.getBoundingClientRect(); wipe(e.clientX-r.left,e.clientY-r.top); });
+      setInterval(()=>{ ctx.fillStyle='rgba(140,165,195,0.016)'; ctx.fillRect(0,0,W,H); },50);
+    });
   </script>
 </body>
 </html>

@@ -4,70 +4,110 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gesture Art · gesture-controlled-ui</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../assets/css/experiment.css" />
 </head>
 <body>
-  <nav><a href="../index.html">← Back</a></nav>
-  <h1>🎨 Gesture Art</h1>
-  <p class="subtitle">Move your index finger to paint. Pinch to change color.</p>
-
-  <div id="stage" style="height:480px">
-    <video id="webcam" width="640" height="480" playsinline muted></video>
-    <canvas id="canvas" width="640" height="480"></canvas>
+  <nav><a href="../index.html">Home</a></nav>
+  <div class="exp-header">
+    <h1>🎨 Gesture Art</h1>
+    <p>Point your index finger to paint. Pinch to lift brush &amp; cycle hue.</p>
   </div>
-  <p id="status">Starting webcam…</p>
+
+  <div id="stage">
+    <video id="webcam" playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div id="status-bar">
+    <div class="status-dot loading" id="dot"></div>
+    <span id="status">Loading MediaPipe…</span>
+  </div>
+
+  <div class="hints">
+    <span class="hint">☝️ Index finger → paint</span>
+    <span class="hint">🤏 Pinch → lift &amp; change colour</span>
+  </div>
 
   <script type="module">
     import { startWebcam } from '../assets/js/webcam.js';
+    import { initHandTracker, detectHands, indexTip, isPinching } from '../assets/js/hand-tracker.js';
 
     const video  = document.getElementById('webcam');
     const canvas = document.getElementById('canvas');
-    const ctx    = canvas.getContext('2d');
+    const dot    = document.getElementById('dot');
     const status = document.getElementById('status');
 
-    let lastX = null, lastY = null;
-    let hue = 0;
+    // Size canvas to stage
+    const stage = document.getElementById('stage');
+    const W = stage.offsetWidth  || 640;
+    const H = stage.offsetHeight || 480;
+    canvas.width = W; canvas.height = H;
+    video.width  = W; video.height  = H;
 
-    // --- MediaPipe Hands fallback (no model file needed for demo) ---
+    const ctx = canvas.getContext('2d');
+    let lastX = null, lastY = null, hue = 0;
+
+    function setStatus(msg, state = 'loading') {
+      status.textContent = msg;
+      dot.className = 'status-dot ' + state;
+    }
+
     async function main() {
+      setStatus('Requesting webcam…', 'loading');
       await startWebcam(video);
-      status.textContent = 'Webcam active — move your hand!';
+      setStatus('Loading hand model…', 'loading');
+      await initHandTracker();
+      setStatus('Ready — point your finger!', 'ready');
 
-      // Draw video feed as background
-      function drawFrame() {
+      function loop() {
         ctx.save();
         ctx.scale(-1, 1);
-        ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, -W, 0, W, H);
         ctx.restore();
-        requestAnimationFrame(drawFrame);
-      }
-      drawFrame();
 
-      // Pointer-based fallback so the page works without a model
-      canvas.addEventListener('pointermove', e => {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        paint(x, y);
-      });
+        const lm = detectHands(video);
+        const tip = indexTip(lm, W, H);
+        if (tip) {
+          const mx = W - tip.x;
+          if (isPinching(lm, W, H)) {
+            hue = (hue + 8) % 360;
+            lastX = null;
+          } else {
+            paint(mx, tip.y);
+          }
+          lm.forEach(l => {
+            ctx.beginPath();
+            ctx.arc(W - l.x * W, l.y * H, 3, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fill();
+          });
+        } else { lastX = null; }
+        requestAnimationFrame(loop);
+      }
+      loop();
     }
 
     function paint(x, y) {
-      hue = (hue + 1) % 360;
-      ctx.strokeStyle = `hsl(${hue}, 90%, 60%)`;
-      ctx.lineWidth = 4;
-      ctx.lineCap = 'round';
+      ctx.strokeStyle = `hsl(${hue},90%,60%)`;
+      ctx.lineWidth = 5; ctx.lineCap = 'round';
       ctx.beginPath();
-      if (lastX !== null) ctx.moveTo(lastX, lastY);
-      else ctx.moveTo(x, y);
-      ctx.lineTo(x, y);
-      ctx.stroke();
+      if (lastX !== null) ctx.moveTo(lastX, lastY); else ctx.moveTo(x, y);
+      ctx.lineTo(x, y); ctx.stroke();
       lastX = x; lastY = y;
     }
 
-    canvas.addEventListener('pointerleave', () => { lastX = null; lastY = null; });
-
-    main().catch(err => { status.textContent = 'Error: ' + err.message; });
+    main().catch(err => {
+      setStatus('⚠️ ' + err.message + ' — using mouse fallback', 'error');
+      canvas.addEventListener('pointermove', e => {
+        const r = canvas.getBoundingClientRect();
+        paint(e.clientX - r.left, e.clientY - r.top);
+      });
+      canvas.addEventListener('pointerleave', () => { lastX = null; });
+      // still draw video
+      (function vloop() { ctx.save(); ctx.scale(-1,1); ctx.drawImage(video,-W,0,W,H); ctx.restore(); requestAnimationFrame(vloop); })();
+    });
   </script>
 </body>
 </html>

@@ -4,57 +4,82 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Liquid Light · gesture-controlled-ui</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../assets/css/experiment.css" />
 </head>
 <body>
-  <nav><a href="../index.html">← Back</a></nav>
-  <h1>💧 Liquid Light</h1>
-  <p class="subtitle">Hover to distort the light grid with fluid ripples.</p>
+  <nav><a href="../index.html">Home</a></nav>
+  <div class="exp-header">
+    <h1>💧 Liquid Light</h1>
+    <p>Hold your palm over the grid to distort it with fluid ripples.</p>
+  </div>
 
-  <div id="stage" style="height:480px">
-    <canvas id="canvas" width="640" height="480"></canvas>
+  <div id="stage">
+    <video id="webcam" playsinline muted></video>
+    <canvas id="canvas" class="layer"></canvas>
+  </div>
+
+  <div id="status-bar">
+    <div class="status-dot loading" id="dot"></div>
+    <span id="status">Loading MediaPipe…</span>
+  </div>
+
+  <div class="hints">
+    <span class="hint">🤚 Move palm to ripple grid</span>
+    <span class="hint">🌈 Colors shift with position</span>
   </div>
 
   <script type="module">
+    import { startWebcam } from '../assets/js/webcam.js';
+    import { initHandTracker, detectHands, palmCenter } from '../assets/js/hand-tracker.js';
+
+    const video  = document.getElementById('webcam');
     const canvas = document.getElementById('canvas');
-    const ctx    = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const COLS = 20, ROWS = 15;
-    const cw = W / COLS, ch = H / ROWS;
+    const dot    = document.getElementById('dot');
+    const status = document.getElementById('status');
+    const stage  = document.getElementById('stage');
+    const W = stage.offsetWidth||640, H = stage.offsetHeight||480;
+    canvas.width=W; canvas.height=H; video.width=W; video.height=H;
+    const ctx=canvas.getContext('2d');
+    const COLS=22,ROWS=16,cw=W/COLS,ch=H/ROWS;
+    let mx=W/2,my=H/2,t=0;
 
-    let mx = W/2, my = H/2, t = 0;
+    function setStatus(msg,state){status.textContent=msg;dot.className='status-dot '+state;}
 
-    canvas.addEventListener('pointermove', e => {
-      const r = canvas.getBoundingClientRect();
-      mx = e.clientX - r.left;
-      my = e.clientY - r.top;
-    });
-
-    function draw() {
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#0d0d0d';
-      ctx.fillRect(0, 0, W, H);
-
-      for (let col = 0; col <= COLS; col++) {
-        for (let row = 0; row <= ROWS; row++) {
-          const bx = col * cw, by = row * ch;
-          const dx = bx - mx, dy = by - my;
-          const dist = Math.sqrt(dx*dx + dy*dy);
-          const ripple = Math.sin(dist * 0.05 - t) * 8;
-          const x = bx + (dx / (dist||1)) * ripple;
-          const y = by + (dy / (dist||1)) * ripple;
-
-          const hue = (col * 18 + row * 24 + t * 30) % 360;
-          ctx.fillStyle = `hsl(${hue},70%,60%)`;
-          ctx.beginPath();
-          ctx.arc(x, y, 2, 0, Math.PI*2);
-          ctx.fill();
-        }
+    function drawGrid(){
+      ctx.clearRect(0,0,W,H); ctx.fillStyle='#08080f'; ctx.fillRect(0,0,W,H);
+      for(let c=0;c<=COLS;c++) for(let r=0;r<=ROWS;r++){
+        const bx=c*cw,by=r*ch,dx=bx-mx,dy=by-my,dist=Math.sqrt(dx*dx+dy*dy)||1;
+        const rip=Math.sin(dist*0.045-t)*11;
+        const x=bx+(dx/dist)*rip, y=by+(dy/dist)*rip;
+        const hue=(c*16+r*22+t*28)%360;
+        ctx.fillStyle=`hsl(${hue},70%,60%)`;
+        ctx.beginPath(); ctx.arc(x,y,2.2,0,Math.PI*2); ctx.fill();
       }
-      t += 0.05;
-      requestAnimationFrame(draw);
+      t+=0.05;
     }
-    draw();
+
+    async function main(){
+      setStatus('Requesting webcam…','loading');
+      await startWebcam(video);
+      setStatus('Loading hand model…','loading');
+      await initHandTracker();
+      setStatus('Ready — hold your palm up!','ready');
+      function loop(){
+        const lm=detectHands(video);
+        const palm=palmCenter(lm,W,H);
+        if(palm){mx=W-palm.x; my=palm.y;}
+        drawGrid(); requestAnimationFrame(loop);
+      }
+      loop();
+    }
+
+    main().catch(err=>{
+      setStatus('⚠️ '+err.message+' — mouse fallback','error');
+      canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top;});
+      (function loop(){drawGrid();requestAnimationFrame(loop);})();
+    });
   </script>
 </body>
 </html>

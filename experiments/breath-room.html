@@ -4,174 +4,97 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Breath Room · gesture-controlled-ui</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../assets/css/experiment.css" />
 </head>
 <body>
-  <nav><a href="../index.html">← Back</a></nav>
-  <h1>🌬️ Breath Room</h1>
-  <p class="subtitle">Open palm → explode. Closed fist → collapse into a sphere.</p>
-
-  <div id="stage" style="height:480px; position:relative">
-    <video id="webcam" width="640" height="480" playsinline muted
-           style="position:absolute;opacity:0;pointer-events:none"></video>
-    <canvas id="canvas" width="640" height="480"
-            style="position:absolute;border-radius:10px;border:1px solid #2a2a2a"></canvas>
+  <nav><a href="../index.html">Home</a></nav>
+  <div class="exp-header">
+    <h1>🌬️ Breath Room</h1>
+    <p>Open palm → scatter particles. Closed fist → collapse into sphere.</p>
   </div>
-  <p id="status">Loading hand tracker…</p>
+
+  <div id="stage">
+    <video id="webcam" playsinline muted></video>
+    <canvas id="canvas" class="layer"></canvas>
+  </div>
+
+  <div id="status-bar">
+    <div class="status-dot loading" id="dot"></div>
+    <span id="status">Loading MediaPipe…</span>
+  </div>
+
+  <div class="hints">
+    <span class="hint">🤚 Open palm → explode</span>
+    <span class="hint">✊ Closed fist → sphere</span>
+  </div>
 
   <script type="module">
     import { startWebcam } from '../assets/js/webcam.js';
-    import { initHandTracker, detectHands, palmCenter } from '../assets/js/hand-tracker.js';
+    import { initHandTracker, detectHands, palmCenter, handOpenness } from '../assets/js/hand-tracker.js';
 
     const video  = document.getElementById('webcam');
     const canvas = document.getElementById('canvas');
-    const ctx    = canvas.getContext('2d');
+    const dot    = document.getElementById('dot');
     const status = document.getElementById('status');
-    const W = canvas.width, H = canvas.height;
-    const COUNT = 180;
+    const stage  = document.getElementById('stage');
+    const W = stage.offsetWidth || 640, H = stage.offsetHeight || 480;
+    canvas.width = W; canvas.height = H;
+    video.width = W; video.height = H;
+    const ctx = canvas.getContext('2d');
+    const COUNT = 180, CX = W/2, CY = H/2;
 
-    // Sphere home position
-    const CX = W / 2, CY = H / 2;
-
-    const particles = Array.from({ length: COUNT }, (_, i) => {
-      const angle = (i / COUNT) * Math.PI * 2;
-      const radius = 10 + Math.random() * 20;
-      return {
-        x: CX + Math.cos(angle) * radius,
-        y: CY + Math.sin(angle) * radius,
-        vx: 0, vy: 0,
-        r: 1.8 + Math.random() * 2.5,
-        alpha: 0.5 + Math.random() * 0.45,
-        // home coords for sphere pull
-        hx: CX + Math.cos(angle) * (30 + Math.random() * 50),
-        hy: CY + Math.sin(angle) * (30 + Math.random() * 50)
-      };
+    const particles = Array.from({length:COUNT},(_,i)=>{
+      const a=(i/COUNT)*Math.PI*2, rad=10+Math.random()*20;
+      return { x:CX+Math.cos(a)*rad, y:CY+Math.sin(a)*rad, vx:0, vy:0,
+               r:1.8+Math.random()*2.5, alpha:0.5+Math.random()*0.45,
+               hx:CX+Math.cos(a)*(30+Math.random()*50), hy:CY+Math.sin(a)*(30+Math.random()*50) };
     });
 
-    /**
-     * Openness score 0-1.
-     * Uses avg distance of fingertips (4,8,12,16,20) from palm base (0).
-     * Open hand ≈ high distance → score near 1.
-     * Closed fist ≈ low distance → score near 0.
-     */
-    function handOpenness(landmarks, w, h) {
-      if (!landmarks.length) return null;
-      const base = landmarks[0];
-      const tips = [4, 8, 12, 16, 20];
-      const avg = tips.reduce((sum, id) => {
-        const dx = (landmarks[id].x - base.x) * w;
-        const dy = (landmarks[id].y - base.y) * h;
-        return sum + Math.sqrt(dx * dx + dy * dy);
-      }, 0) / tips.length;
-      // ~180px = fully open, ~50px = fist
-      return Math.min(Math.max((avg - 50) / 130, 0), 1);
+    let palmX=CX, palmY=CY, openness=0.5;
+    function setStatus(msg,state){status.textContent=msg;dot.className='status-dot '+state;}
+
+    function runParticles() {
+      ctx.fillStyle='rgba(8,8,16,0.18)'; ctx.fillRect(0,0,W,H);
+      particles.forEach(p=>{
+        if(openness>0.55){
+          const dx=p.x-palmX,dy=p.y-palmY,dist=Math.sqrt(dx*dx+dy*dy)||1,force=(openness-0.55)*3.5;
+          p.vx+=(dx/dist)*force; p.vy+=(dy/dist)*force;
+        } else {
+          const force=(0.55-openness)*4.5;
+          p.vx+=(p.hx-p.x)*0.015*force; p.vy+=(p.hy-p.y)*0.015*force;
+        }
+        p.vx*=0.93; p.vy*=0.93; p.x+=p.vx; p.y+=p.vy;
+        if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+        const hue=openness>0.55?'200,90%,65%':'270,80%,65%';
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+        ctx.fillStyle=`hsla(${hue},${p.alpha})`; ctx.fill();
+      });
     }
 
-    let palmX = CX, palmY = CY;
-    let openness = 0.5; // default neutral
-
     async function main() {
+      setStatus('Requesting webcam…','loading');
       await startWebcam(video);
+      setStatus('Loading hand model…','loading');
       await initHandTracker();
-      status.textContent = '✋ Open palm to scatter · make a fist to pull back';
-
-      function loop() {
-        const landmarks = detectHands(video);
-        const palm = palmCenter(landmarks, W, H);
-
-        if (palm) {
-          palmX = W - palm.x; // mirror
-          palmY = palm.y;
-          const o = handOpenness(landmarks, W, H);
-          if (o !== null) openness = openness * 0.85 + o * 0.15; // smooth
-        }
-
-        ctx.fillStyle = 'rgba(13,13,13,0.18)';
-        ctx.fillRect(0, 0, W, H);
-
-        particles.forEach(p => {
-          if (openness > 0.55) {
-            // OPEN — explode outward from palm
-            const dx = p.x - palmX, dy = p.y - palmY;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const force = (openness - 0.55) * 3.5;
-            p.vx += (dx / dist) * force;
-            p.vy += (dy / dist) * force;
-          } else {
-            // CLOSED — pull toward home sphere position
-            const dx = p.hx - p.x, dy = p.hy - p.y;
-            const force = (0.55 - openness) * 4.5;
-            p.vx += dx * 0.015 * force;
-            p.vy += dy * 0.015 * force;
-          }
-
-          p.vx *= 0.93;
-          p.vy *= 0.93;
-          p.x += p.vx;
-          p.y += p.vy;
-
-          // Wrap edges
-          if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
-          if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
-
-          // Color shifts with openness
-          const hue = openness > 0.55
-            ? `200, 90%, 65%`   // cool blue-cyan when open
-            : `270, 80%, 65%`;  // purple when closed
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-          ctx.fillStyle = `hsla(${hue}, ${p.alpha})`;
-          ctx.fill();
-        });
-
-        // Draw openness indicator
-        ctx.font = '13px monospace';
-        ctx.fillStyle = '#555';
-        ctx.fillText(openness > 0.55 ? '🤚 open' : '✊ closed', 12, H - 14);
-
+      setStatus('Ready — show your hand!','ready');
+      function loop(){
+        const lm=detectHands(video);
+        const palm=palmCenter(lm,W,H);
+        if(palm){ palmX=W-palm.x; palmY=palm.y; const o=handOpenness(lm,W,H); if(o!==null) openness=openness*0.85+o*0.15; }
+        runParticles();
         requestAnimationFrame(loop);
       }
       loop();
     }
 
-    // Mouse fallback: click to toggle open/closed, move to reposition
-    main().catch(err => {
-      status.textContent = '⚠ ' + err.message + ' — click to toggle open/closed, move to reposition';
-      let toggled = false;
-      canvas.addEventListener('click', () => {
-        toggled = !toggled;
-        openness = toggled ? 1 : 0;
-      });
-      canvas.addEventListener('pointermove', e => {
-        const r = canvas.getBoundingClientRect();
-        palmX = e.clientX - r.left;
-        palmY = e.clientY - r.top;
-      });
-      (function loop() {
-        ctx.fillStyle = 'rgba(13,13,13,0.18)';
-        ctx.fillRect(0, 0, W, H);
-        particles.forEach(p => {
-          if (openness > 0.55) {
-            const dx = p.x - palmX, dy = p.y - palmY;
-            const dist = Math.sqrt(dx*dx+dy*dy)||1;
-            p.vx += (dx/dist)*(openness-0.55)*3.5;
-            p.vy += (dy/dist)*(openness-0.55)*3.5;
-          } else {
-            p.vx += (p.hx - p.x)*0.015*(0.55-openness)*4.5;
-            p.vy += (p.hy - p.y)*0.015*(0.55-openness)*4.5;
-          }
-          p.vx *= 0.93; p.vy *= 0.93;
-          p.x += p.vx; p.y += p.vy;
-          if(p.x<0)p.x=W; if(p.x>W)p.x=0;
-          if(p.y<0)p.y=H; if(p.y>H)p.y=0;
-          const hue = openness > 0.55 ? '200,90%,65%' : '270,80%,65%';
-          ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-          ctx.fillStyle = `hsla(${hue},${p.alpha})`; ctx.fill();
-        });
-        ctx.font='13px monospace'; ctx.fillStyle='#555';
-        ctx.fillText(openness>0.55?'🤚 open':'✊ closed',12,H-14);
-        requestAnimationFrame(loop);
-      })();
+    main().catch(err=>{
+      setStatus('⚠️ '+err.message+' — click to toggle','error');
+      let tog=false;
+      canvas.addEventListener('click',()=>{ tog=!tog; openness=tog?1:0; });
+      canvas.addEventListener('pointermove',e=>{ const r=canvas.getBoundingClientRect(); palmX=e.clientX-r.left; palmY=e.clientY-r.top; });
+      (function loop(){ runParticles(); requestAnimationFrame(loop); })();
     });
   </script>
 </body>
